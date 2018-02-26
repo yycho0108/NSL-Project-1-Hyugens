@@ -177,7 +177,7 @@ with open('data_3.txt', 'r') as f:
     # flags
     dup_id = False
     anim = False
-    save = True
+    save = False
 
     fps = 60
 
