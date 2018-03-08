@@ -127,11 +127,27 @@ def main(f, opts):
     th = np.arctan2(dx, dy)
     print len(th)
 
-    fig,ax = plt.subplots()
+    fig = plt.figure()
+    ax = fig.add_subplot(2,2,3)
+    ax2 = fig.add_subplot(2,2,4)
+    ax3 = fig.add_subplot(2,1,1)
 
-    plt.plot(x,y)
-    #plt.xlim(xlim)
-    #plt.ylim(ylim)
+    ax.plot(x,y)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_xlabel('x(mm)')
+    ax.set_ylabel('y(mm)')
+    ax.set_title('x-y equal scale')
+
+    ax2.plot(x,y)
+    ax2.set_xlabel('x(mm)')
+    ax2.set_ylabel('y(mm)')
+    ax2.set_title('x-y fit')
+
+    ax3.plot(np.arange(len(th))/60., np.rad2deg(th)) # assume 60 fps
+    ax3.set_xlabel('t(s)')
+    ax3.set_ylabel(r'$\theta (deg)$')
+    ax3.set_title('Single Pendulum Behavior, With Escapement')
     #circle(pivot, 343.)
     #circle(pivot2, radius)
     #plt.legend(['data','pg','pc'])
