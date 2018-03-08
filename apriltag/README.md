@@ -11,7 +11,7 @@ To process video, run:
 To test with existing data, run:
 
 ```bash
-python parse.py
+./parse.py [-h] [--outfile [OUTFILE]] filename
 ```
 
 

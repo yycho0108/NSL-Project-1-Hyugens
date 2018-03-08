@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import sys
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -5,6 +7,8 @@ from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.animation import FuncAnimation, TimedAnimation, writers
 
+import sys
+import argparse
 
 class Tag(object):
     def __init__(self, data):
@@ -17,6 +21,10 @@ class Tag(object):
             return np.linalg.norm(self._x - o._x)
 
 def reorder(e0, e1):
+    """
+    Use reorder() iteratively in case ids have duplicates.
+    Figures out tag assignment based on previous positions.
+    """
     t0 = [Tag(i) for i in e0]
     t1 = [Tag(i) for i in e1]
 
@@ -45,11 +53,12 @@ def v2vx(v):
     return np.reshape([0, -v3, v2, v3, 0, -v1, -v2, v1, 0], (3,3)).astype(np.float32)
 
 def rmat(v0, v1):
+    # returns 3d rotation Matrix M, such that
+    # M * uvec(v0) = uvec(v1)
+
     u = v0
     v = v1
 
-    #print np.linalg.norm(u)
-    #print np.linalg.norm(v)
     axis = np.cross(u, v)
     axis /= np.linalg.norm(axis)
     ax,ay,az = axis
@@ -60,17 +69,6 @@ def rmat(v0, v1):
 
     M = (1.0 - c) * np.outer(axis, axis)
     M += np.reshape([c, -s*az, s*ay, s*az, c, -s*ax, -s*ay, s*ax, c],(3,3))
-    #print u, np.dot(M, u)
-
-    #M = [
-    #        [ax*ax*_c+c, ax*ay*_c-s*az, ax*az*_c+s*ay],
-    #        [ax*ay*_c+s*az, ay*ay*_c+c, ay*az*_c-s*ax],
-    #        [ax*az*_c-s*ay, ay*az*_c+s*ax, az*az*_c+c]
-    #        ]
-    #print M - M0
-
-    #print u, np.asarray(M).dot(u[:,np.newaxis])
-    # M * v0 = v1
     return np.asarray(M, dtype=np.float32)
 
 
@@ -94,10 +92,10 @@ class SubplotAnimation(TimedAnimation):
         self.k2 = k2
         self.t = t
 
-        x1, y1 = k2[:,0,:2].T
-        x2, y2 = k2[:,1,:2].T
-        x3, y3 = k2[:,2,:2].T
-        x4, y4 = k2[:,3,:2].T
+        x1, y1 = k2[:,0].T
+        x2, y2 = k2[:,1].T
+        x3, y3 = k2[:,2].T
+        x4, y4 = k2[:,3].T
 
         self.x1, self.y1 = x1,y1
         self.x2, self.y2 = x2,y2
@@ -145,7 +143,7 @@ class SubplotAnimation(TimedAnimation):
 
     def _draw_frame(self, n):
         for i in range(6):
-            (x,y) = self.k2[:n,i,:2].T
+            (x,y) = self.k2[:n,i].T
             self.ps1[i].set_data(x,y)
 
         self.pc1.center = self.x1[n], self.y1[n]
@@ -172,17 +170,10 @@ class SubplotAnimation(TimedAnimation):
         for l in lines:
             l.set_data([], [])
 
-with open('data_3.txt', 'r') as f:
-
-    # flags
-    dup_id = False
-    anim = False
-    save = False
+def main(f, opts):
 
     fps = 60
-
     k = f.readlines()[1:]
-
     k = [np.asarray([r.split(',') for r in e.split('|')[:-1]], dtype=np.float32) for e in k]
     #k = [id,x,y,z,id,x,y,z,id,x,y,z]
 
@@ -227,132 +218,34 @@ with open('data_3.txt', 'r') as f:
         k2[:,i] = np.asarray([R.dot(v) for (R,v) in zip(Rs,k2[:,i])], dtype=np.float32)
     k2 -= k2[:,np.newaxis, 5] # subtract track reference, for camera motion
 
-    # convert to 2d coords for each
-    x1, y1 = k2[:,0,:2].T
-    x2, y2 = k2[:,1,:2].T
+    k2 = k2[:,:,:2] # convert to 2d
 
-    x3, y3 = k2[:,2,:2].T
-    x4, y4 = k2[:,3,:2].T
-    x5, y5 = k2[:,4,:2].T
-
-    x6, y6 = k2[:,5,:2].T
-
-    th1 = np.arctan2(x1-x3,(y3-25.4)-y1)
-    th2 = np.arctan2(x2-x4,(y4-25.4)-y2)
-    #plt.plot(t,th1)
-    #plt.show()
-    #sys.exit(0)
-
-    #plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
 
-    if anim:
-        dx2, dy2 = x2-x1, y2-y1
-        dx3, dy3 = x3-x1, y3-y1
+    ani = SubplotAnimation(k2,t)
 
-        #plt.plot(t, -(y2-y1))
-        fig = plt.figure()
-        fig.set_dpi(100)
-        fig.set_size_inches(7, 6.5)
-        ax = fig.gca()
-
-        p1, = ax.plot([], [])
-        p2, = ax.plot([], [])
-
-        p3 = plt.Circle((0, 0), 0.75, fc='r')
-        p4 = plt.Circle((0, 0), 0.75, fc='b')
-
-        def init():
-            plt.ylim([-70, 0])
-            plt.xlim([-200,200])
-            ax.add_patch(p3)
-            ax.add_patch(p4)
-            return p1, p2, p3, p4
-
-        def update(n):
-            p1.set_data(dx2[:n], dy2[:n])
-            p2.set_data(dx3[:n], dy3[:n])
-            p3.center = dx2[n], dy2[n]
-            p4.center = dx3[n], dy3[n]
-            return p1, p2, p3, p4
-
+    if opts.outfile:
         Writer = writers['ffmpeg']
         writer = Writer(fps=60, metadata=dict(artist='Me'), bitrate=1800)
-        
-        ani = FuncAnimation(fig, update, frames=t,
-                        init_func=init, blit=True, interval=1000./60, repeat=False)
-        #ani.save('meh.gif', writer='imagemagick')
-        
-            
-        #plt.plot(t,x2-x1)
-        #plt.plot(t,x3-x1)
+        ani.save('meh3.mp4', writer=writer)
 
-        #plt.plot(x3,y3) # tag 1 , x
-    else:
-
-        #fig = plt.figure()
-        #fig.set_dpi(100)
-        #fig.set_size_inches(6,8)
-
-        #ax1 = fig.gca()
-        ##ax1 = fig.add_subplot(1,2,1)
-        ##ax2 = fig.add_subplot(1,2,2)
-
-        #p1, = ax1.plot(x1,y1)
-        #p2, = ax1.plot(x2,y2)
-        #p3, = ax1.plot(x3,y3)
-        #p4, = ax1.plot(x4,y4)
-        #p5, = ax1.plot(x5,y5)
-        #p6, = ax1.plot(x6,y6)
-
-        #pc1 = plt.Circle((0, 0), 10, fc='r')
-        #pc2 = plt.Circle((0, 0), 10, fc='b')
-        #pc3 = plt.Circle((0, 0), 5, fc='g')
-
-        #plt.axes().set_aspect('equal', 'datalim')
-        #plt.axis('equal')
-        #plt.xlabel('x(mm)')
-        #plt.ylabel('y(mm)')
-        #plt.title('System data plot')
-        #plt.legend(['1','2','3','4','5','6'])
-
-        ###plt.plot(t, -(y2-y1))
-
-
-        #def init():
-        #    #plt.ylim([-70, 0])
-        #    #plt.xlim([-200,200])
-        #    ax1.add_patch(pc1)
-        #    ax1.add_patch(pc2)
-        #    ax1.add_patch(pc3)
-        #    return [p1,p2,p3,p4,p5,p6,pc1,pc2,pc3]
-
-        #def update(n):
-        #    p1.set_data(x1[:n], y1[:n])
-        #    p2.set_data(x2[:n], y2[:n])
-        #    p3.set_data(x3[:n], y3[:n])
-        #    p4.set_data(x4[:n], y4[:n])
-        #    p5.set_data(x5[:n], y5[:n])
-        #    p6.set_data(x6[:n], y6[:n])
-
-        #    pc1.center = x1[n], y1[n]
-        #    pc2.center = x2[n], y2[n]
-        #    pc3.center = x5[n], y5[n]
-        #    #pc3.center = np.mean([
-        #    #            [x3[n], y3[n]],
-        #    #            [x4[n], y4[n]],
-        #    #            [x5[n], y5[n]],
-        #    #            ], axis=0)
-
-        #    
-        #    return [p1,p2,p3,p4,p5,p6,pc1,pc2,pc3]
-        #ani = FuncAnimation(fig, update, frames=range(len(t)),
-        #                init_func=init, blit=True, interval=1000./fps, repeat=False)
-
-        ani = SubplotAnimation(k2,t)
-        if save:
-            Writer = writers['ffmpeg']
-            writer = Writer(fps=60, metadata=dict(artist='Me'), bitrate=1800)
-            ani.save('meh3.mp4', writer=writer)
     plt.show()
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+            description='Process Tag Data, and produce coordinate data and plots'
+            )
+    parser.add_argument('filename', type=str)#, nargs='1')
+    parser.add_argument('--outfile', type=str, nargs='?', const=True, default='', help='Video output file')
+
+    opts = parser.parse_args(sys.argv[1:])
+    with open(opts.filename) as f:
+        main(f, opts)

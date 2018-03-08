@@ -165,9 +165,9 @@ int main(int argc, char** argv) {
       apriltag_detection_t *det;
       zarray_get(detections, i, &det);
       getRelativeTransform(
-              29.5, //20mm
-              28.0, //26mm
-              28.0, //26mm
+              19.8, //20mm
+              85.0, //26mm
+              85.0, //26mm
               gray.cols / 2.0,
               gray.rows / 2.0,
               (double*)det->p,
