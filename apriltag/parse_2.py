@@ -59,9 +59,30 @@ def get_pivot(pts):
 
     c = (sxx+syy - 2*x*sx - 2*y*sy) / n
     r = np.sqrt(c + x*x+y*y)
-    print r
 
     return (x,y), r
+
+def get_pivot_2(pts, r):
+    # r = 343
+    pts = np.transpose(pts)
+    n = len(pts)
+    res = []
+    for i in range(n):
+        for j in range(i+1,n):
+            p1, p2 = pts[i], pts[j]
+            dp = np.subtract(p2,p1)
+            d = np.linalg.norm(dp)
+            a = d/2.
+            h = np.sqrt(np.abs(r**2-a**2))
+            if dp[0] >= 0:
+                x3 = p2[0] - h * dp[1] / d
+                y3 = p2[1] + h * dp[0] / d
+            else:
+                x3 = p2[0] + h * dp[1] / d
+                y3 = p2[1] - h * dp[0] / d
+            res.append((x3,y3))
+    return np.mean(res, axis=0)
+
 
 def circle(c, r):
     th = np.linspace(-np.pi, np.pi)
@@ -80,10 +101,9 @@ def main(f, opts):
     R = rmat(nv, [0,0,1])
     v = np.asarray([R.dot(v) for v in k])
     v -= v[0] # normalize ...
-    v_2d = v[300:,:2]
+    v[:,1] = -v[:,1]# flip y
 
-    x, y = v_2d.T
-    y = -y
+    x, y = v[300:,:2].T
 
     mxx = np.max(x)
     mnx = np.min(x)
@@ -95,30 +115,27 @@ def main(f, opts):
     xlim = [mdx-scale/2, mdx+scale/2]
     ylim = [mdy-scale/2, mdy+scale/2]
 
-    pivot = y[0] + 343. # 34.3 cm = 343mm
+    pivot = [0, y[0] + 343.] # 34.3 cm = 343mm
     pivot2, radius = get_pivot([x[500:-500],y[500:-500]])
-    print pivot, pivot2
+    pivot3 =  get_pivot_2([x[-1000:-500], y[-1000:-500]], 343.)
+    print 'ps', pivot, pivot2, pivot3
 
-    dx = x
-    dy = pivot - y
+    pivot = pivot3
+
+    dx = x - pivot[0]
+    dy = pivot[1] - y
     th = np.arctan2(dx, dy)
     print len(th)
 
     fig,ax = plt.subplots()
 
     plt.plot(x,y)
-    plt.xlim(xlim)
-    plt.ylim(ylim)
-
-    circle([0, pivot], 343.)
-    circle(pivot2, radius)
-
-    plt.legend(['data','pg','pc'])
-    #c1 = plt.Circle([0,pivot], 343.)
-    #c2 = plt.Circle(pivot2, radius)
-    #ax.add_artist(c1)
-    #ax.add_artist(c2)
-    #plt.plot(th)
+    #plt.xlim(xlim)
+    #plt.ylim(ylim)
+    #circle(pivot, 343.)
+    #circle(pivot2, radius)
+    #plt.legend(['data','pg','pc'])
+    #plt.plot(np.arange(len(th))/60., th)
     plt.show()
 
     # calculate normal vector based on answer [here](https://math.stackexchange.com/questions/99299/best-fitting-plane-given-a-set-of-points)
