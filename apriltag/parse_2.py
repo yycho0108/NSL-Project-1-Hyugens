@@ -20,7 +20,6 @@ def rmat(v0, v1):
     M += np.reshape([c, -s*az, s*ay, s*az, c, -s*ax, -s*ay, s*ax, c],(3,3))
     return np.asarray(M, dtype=np.float32)
 
-
 def project2d(vs, ns):
     # vs = vectors
     # ns = normal vectors
@@ -37,6 +36,39 @@ def nvec(pts):
     u,s,v = np.linalg.svd(pts, compute_uv=True)
     return u[:,-1] / np.linalg.norm(u[:,-1])
 
+def get_pivot(pts):
+    n,m = np.shape(pts)
+    if n == 2:
+        pts = np.transpose(pts)
+        n,m = np.shape(pts)
+
+    x, y = np.transpose(pts)
+    sx, sy = np.sum(pts, axis=0)
+    sxx, syy = np.sum(np.square(pts), axis=0)
+
+    d11 = n * np.sum(x*y) - sx*sy
+    d20 = n * sxx - sx*sx
+    d02 = n * syy - sy*sy
+    d30 = n * np.sum(x*x*x) - sxx*sx
+    d03 = n * np.sum(y*y*y) - syy*sy
+    d21 = n * np.sum(x*x*y) - sxx*sy
+    d12 = n * np.sum(y*y*x) - syy*sx
+
+    x = ((d30 + d12) * d02 - (d03 + d21) * d11) / (2 * (d20 * d02 - d11 * d11))
+    y = ((d03 + d21) * d20 - (d30 + d12) * d11) / (2 * (d20 * d02 - d11 * d11))
+
+    c = (sxx+syy - 2*x*sx - 2*y*sy) / n
+    r = np.sqrt(c + x*x+y*y)
+    print r
+
+    return (x,y), r
+
+def circle(c, r):
+    th = np.linspace(-np.pi, np.pi)
+    x = c[0] + r*np.cos(th)
+    y = c[1] + r*np.sin(th)
+    plt.plot(x,y)
+
 def main(f, opts):
     k = f.readlines()[1:]
     k = [np.asarray([r.split(',')[1:] for r in e.split('|')[:-1]], dtype=np.float32) for e in k]
@@ -47,21 +79,46 @@ def main(f, opts):
     nv = nvec(ref)
     R = rmat(nv, [0,0,1])
     v = np.asarray([R.dot(v) for v in k])
-    v -= v[0]
-    v_2d = v[:,:2]
+    v -= v[0] # normalize ...
+    v_2d = v[300:,:2]
 
     x, y = v_2d.T
     y = -y
 
-    pivot = y+343. # 34.3 cm = 343mm
+    mxx = np.max(x)
+    mnx = np.min(x)
+    mdx = (mxx+mnx)/2.
+    mxy = np.max(y)
+    mny = np.min(y)
+    mdy = (mxy+mny)/2.
+    scale = max(mxx-mnx, mxy-mny)
+    xlim = [mdx-scale/2, mdx+scale/2]
+    ylim = [mdy-scale/2, mdy+scale/2]
+
+    pivot = y[0] + 343. # 34.3 cm = 343mm
+    pivot2, radius = get_pivot([x[500:-500],y[500:-500]])
+    print pivot, pivot2
 
     dx = x
     dy = pivot - y
     th = np.arctan2(dx, dy)
     print len(th)
 
-    #plt.plot(x,y)
-    plt.plot(th)
+    fig,ax = plt.subplots()
+
+    plt.plot(x,y)
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+
+    circle([0, pivot], 343.)
+    circle(pivot2, radius)
+
+    plt.legend(['data','pg','pc'])
+    #c1 = plt.Circle([0,pivot], 343.)
+    #c2 = plt.Circle(pivot2, radius)
+    #ax.add_artist(c1)
+    #ax.add_artist(c2)
+    #plt.plot(th)
     plt.show()
 
     # calculate normal vector based on answer [here](https://math.stackexchange.com/questions/99299/best-fitting-plane-given-a-set-of-points)
