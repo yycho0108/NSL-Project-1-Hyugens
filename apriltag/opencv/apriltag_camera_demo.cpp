@@ -7,11 +7,13 @@ extern "C"{
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <iostream>
 
 void getRelativeTransform(
         double tag_size,
-        double fx, double fy,
-        double px, double py,
+        cv::Matx33f& K,
+        cv::Mat& rvec,
+        cv::Mat& tvec,
         double* p, 
         double* tx, double* ty, double* tz
         ) {
@@ -24,38 +26,19 @@ void getRelativeTransform(
   objPts.push_back(cv::Point3f( s, s, 0));
   objPts.push_back(cv::Point3f(-s, s, 0));
 
-  //std::pair<float, float> p1 = p[0];
-  //std::pair<float, float> p2 = p[1];
-  //std::pair<float, float> p3 = p[2];
-  //std::pair<float, float> p4 = p[3];
   imgPts.push_back(cv::Point2f(p[0], p[1]));
   imgPts.push_back(cv::Point2f(p[2], p[3]));
   imgPts.push_back(cv::Point2f(p[4], p[5]));
   imgPts.push_back(cv::Point2f(p[6], p[7]));
 
-  cv::Mat rvec, tvec;
-  cv::Matx33f cameraMatrix(
-                           fx, 0, px,
-                           0, fy, py,
-                           0,  0,  1);
   cv::Vec4f distParam(0,0,0,0); // all 0?
-  cv::solvePnP(objPts, imgPts, cameraMatrix, distParam, rvec, tvec);
+  cv::solvePnP(objPts, imgPts, K, distParam, rvec, tvec);
 
   *tx = tvec.at<double>(0);
   *ty = tvec.at<double>(1);
   *tz = tvec.at<double>(2);
 
-  //cv::Matx33d r;
-  //cv::Rodrigues(rvec, r);
-  //Eigen::Matrix3d wRo;
-  //wRo << r(0,0), r(0,1), r(0,2), r(1,0), r(1,1), r(1,2), r(2,0), r(2,1), r(2,2);
-
-  //Eigen::Matrix4d T; 
-  //T.topLeftCorner(3,3) = wRo;
-  //T.col(3).head(3) << tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2);
-  //T.row(3) << 0,0,0,1;
-
-  //return T;
+  return;
 }
 
 int main(int argc, char** argv) {
@@ -137,15 +120,40 @@ int main(int argc, char** argv) {
 
   cv::Mat frame;
 
-  cv::namedWindow(window);
+  bool ok = cap->read(frame);
+  if(!ok){
+      std::cerr << "Failed To Read First Frame" << std::endl;
+      return 1;
+  }
+
+  bool suc = cap->set(CV_CAP_PROP_POS_FRAMES, 0); //reset
+  if(!suc){
+      std::cerr << "Failed To Reset To First Frame" << std::endl;
+      return 1;
+  }
+
+  float fx = 85.0;
+  float fy = 85.0;
+  float tag_sz = 19.8;
+  float px = frame.cols / 2.0;
+  float py = frame.rows / 2.0;
+  cv::Mat rvec, tvec;
+  double tx, ty, tz;
+
+  cv::Matx33f K(
+          fx, 0, px,
+          0, fy, py,
+          0,  0,  1);
+
+  //cv::namedWindow(window);
+  
+  Mat8uc1 gray;
 
   while (1) {
     bool ok = cap->read(frame);
     if (!ok) { break; }
-    cv::imshow(window, frame);
+    //cv::imshow(window, frame);
 
-    Mat8uc1 gray;
-    
     if (frame.channels() == 3) {
       cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
     } else {
@@ -153,25 +161,18 @@ int main(int argc, char** argv) {
     }
     
     image_u8_t* im8 = cv2im8_copy(gray);
-    
     zarray_t *detections = apriltag_detector_detect(td, im8);
+    image_u8_destroy(im8);
     
     //printf("detected %d tags\n", zarray_size(detections));
 
-    cv::Mat display = detectionsImage(detections, frame.size(), frame.type());
+    //cv::Mat display = detectionsImage(detections, frame.size(), frame.type());
     //printf("size : %d\n", zarray_size(detections));
-    double tx, ty, tz;
     for (int i = 0; i < zarray_size(detections); i++) {
       apriltag_detection_t *det;
       zarray_get(detections, i, &det);
-      getRelativeTransform(
-              19.8, //20mm
-              85.0, //26mm
-              85.0, //26mm
-              gray.cols / 2.0,
-              gray.rows / 2.0,
-              (double*)det->p,
-              &tx, &ty, &tz);
+
+      getRelativeTransform(tag_sz, K, rvec, tvec, (double*)det->p, &tx, &ty, &tz);
 
       //printf("detection %3d: id (%2dx%2d)-%-4d, hamming %d, "
       //       "goodness %8.3f, margin %8.3f\n",
@@ -187,17 +188,14 @@ int main(int argc, char** argv) {
       //matd_destroy(p);
       printf("%d,%.9f,%.9f,%.9f|", det->id, tx,ty,tz);
     }
-
     printf("\n");
-
     apriltag_detections_destroy(detections);
 
-    display = 0.5*display + 0.5*frame;
-    cv::imshow(window, display);
-    image_u8_destroy(im8);
+    //display = 0.5*display + 0.5*frame;
+    //cv::imshow(window, display);
     
-    int k = cv::waitKey(1);
-    if (k == 27) { break; }
+    //int k = cv::waitKey(1);
+    //if (k == 27) { break; }
     
   }
   
