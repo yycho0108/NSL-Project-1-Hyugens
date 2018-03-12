@@ -230,6 +230,8 @@ def plot(f):
 
     #pidx = np.divide(peaks[:-1], p) # peaks = p0*e^(-g*t)
 
+    th += 0.775
+
     peaks = th[pidx]
     times = t[pidx]
     sel = (peaks > 0)
@@ -240,6 +242,9 @@ def plot(f):
     g, a = np.polyfit(times, lpeaks, 1)
 
     fig, ax = plt.subplots()
+    print len(th)
+    print 'th0', np.max(th)
+    print 'thmin', np.min(th)
     plt.plot(t, th)
     plt.plot(times, peaks, '*')
     plt.plot(t, np.exp(a)*np.exp(g*t), '--')
@@ -249,7 +254,7 @@ def plot(f):
     #plt.plot(peaks)
     #plt.rc('text', usetex=True)
     plt.title('Damping Behavior Without Escapement')
-    plt.xlabel('Time (ms)')
+    plt.xlabel('Time (s)')
     plt.ylabel(r'$\theta (deg)$')
     plt.legend(['data', 'peaks', 'fit'])
     print 'g', g
