@@ -14,6 +14,8 @@ import sys
 import argparse
 from scipy.signal import find_peaks_cwt
 
+from utils import proc
+
 def v2vx(v):
     v1,v2,v3 = v
     return np.reshape([0, -v3, v2, v3, 0, -v1, -v2, v1, 0], (3,3)).astype(np.float32)
@@ -94,14 +96,13 @@ def get_pivot_2(pts, r=343.):
             res.append((x3,y3))
     return np.mean(res, axis=0)
 
-def proc(f, opts):
+def process(f, opts):
     fps = 60
     dt = 1.0/fps
 
     # Data Format : [id,x,y,z | id,x,y,z | id,x,y,z ...]
     raw_data = f.readlines()[1:]
     raw_data = [np.asarray([r.split(',') for r in e.split('|')[:-1]], dtype=np.float32) for e in raw_data]
-
 
     # Process & match ids, etc...
     fpt = MSS(6, 1e-3, 2, 0.0)
@@ -116,39 +117,7 @@ def proc(f, opts):
     ids = np.int32([l[0] for l in raw_data[0]]) # say 15, 25, 31
 
     l = len(raw_data) - 1 # skip the first one, so...
-    pos = []
-    vel = []
-    for c, e in enumerate(raw_data[1:]):
-        if c % 100 == 0:
-            print '{}/{}\r'.format(c, l)
-        [u.predict(dt) for u in ukfs]
-        midx, obs = reorder(e, ids)
-        if midx:
-            # only update applicable ones
-            for i in range(4):
-                if i in midx:
-                    continue
-                ukfs[i].update(obs[i])
-        else:
-            # correct based on estimates
-            [u.update(e) for (u,e) in zip(ukfs, obs)]
-
-        entry = []
-        ventry = []
-        for u in ukfs:      
-            entry.append(u.x[:3])
-            ventry.append(u.x[3:])
-        pos.append(np.float32(entry))
-        vel.append(np.float32(ventry))
-
-    vel = np.float32(vel)
-    pos = np.float32(pos)
-
-    #print np.shape(vel)
-    #print np.max(vel, axis=0)
-    #print np.min(vel, axis=0)
-
-    pos = np.asarray(pos, dtype=np.float32) # k2 = [n, i, p]
+    pos,vel = proc(raw_data, ids, dt) 
 
     # flip y ...
     np.negative(pos[:,:,1], pos[:,:,1])
@@ -159,32 +128,27 @@ def proc(f, opts):
     print np.shape(ctr)
     pos -= ctr
 
-    # simple 2d viz for testing
-    #plt.plot(pos[:,0,0], pos[:,0,1]) #plot x-y
-    #m = pos
-    #plt.plot(m[:,1,0], m[:,1,1]) #plot x-y
-    #v1 = np.var(m[:,1], axis=0)
-    #v2 = np.var(m[:,2], axis=0)
-    #v3 = np.var(m[:,3], axis=0)
-    #print np.mean([v1,v2,v3], axis=0)
-    #plt.show()
-
-    t = (1./fps) * np.arange(len(pos)) # 60fps
-
     # calculate normal vector
     v1 = np.subtract(pos[:,1], pos[:,2])
     v2 = np.subtract(pos[:,1], pos[:,3])
     n = np.cross(v1,v2)
     n /= np.linalg.norm(n, axis=-1, keepdims=True)
 
-    # align to normal plane
+    # align all to normal plane
     for i in range(4):
         pos[:,i] = project2d(pos[:,i], n)
-    pos = pos[:,:,:2] # remove z component
+        vel[:,i] = project2d(vel[:,i], n)
+
+    pos = pos[...,:2] # remove z component
+    vel = vel[...,:2]
 
     # get pivot point
-    sample_idx = np.random.choice(len(pos), size=1000, replace=False)
-    pivot = get_pivot_2(pos[sample_idx,0])
+
+    #sample_idx = np.random.choice(len(pos), size=1000, replace=False)
+    #pivot = get_pivot_2(pos[sample_idx,0])
+    px = np.mean(pos[:,0])
+    py = np.min(pos[:,1]) + 343
+    pivot = (px, py)
 
     x, y = pos[:,0].T
 
@@ -193,8 +157,18 @@ def proc(f, opts):
     dy = pivot[1] - y
     th = np.arctan2(dx, dy)
 
+    # time
+    t = dt * np.arange(len(pos)) # 60fps
+    t = t[..., np.newaxis] # add axis for concatenating
+
     if opts.outfile:
-        np.save(opts.outfile, (t, th))
+        #np.save(opts.outfile, (t, th))
+        np.savetxt(opts.outfile,
+            np.concatenate((t,pos,vel), axis=-1),
+            delimiter=',',
+            header = 't x y vx vy'
+            )
+
     #plt.plot(t[offset:], th[offset:])
     #plt.show()
 
@@ -230,7 +204,7 @@ def plot(f):
 
     #pidx = np.divide(peaks[:-1], p) # peaks = p0*e^(-g*t)
 
-    th += 0.775
+    #th += 0.775
 
     peaks = th[pidx]
     times = t[pidx]
@@ -285,7 +259,7 @@ if __name__ == "__main__":
     if opts.proc:
         # processing
         with open(opts.filename) as f:
-            proc(f, opts)
+            process(f, opts)
     else:
         # plotting
         plot(opts.filename)

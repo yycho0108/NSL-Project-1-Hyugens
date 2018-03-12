@@ -3,8 +3,10 @@ build
 .DS_Store
 *.pyc
 images/
+*.csv
+*.npy
 
-# Created by https://www.gitignore.io/api/c,git,c++,linux,cmake,opencv,python,windows
+# Created by https://www.gitignore.io/api/c,git,vim,c++,linux,cmake,opencv,python,windows
 
 ### C ###
 # Prerequisites
@@ -217,6 +219,17 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+### Vim ###
+# swap
+.sw[a-p]
+.*.sw[a-p]
+# session
+Session.vim
+# temporary
+.netrwhist
+# auto-generated tag files
+tags
+
 ### Windows ###
 # Windows thumbnail cache files
 Thumbs.db
@@ -239,5 +252,4 @@ $RECYCLE.BIN/
 *.lnk
 
 
-# End of https://www.gitignore.io/api/c,git,c++,linux,cmake,opencv,python,windows
-
+# End of https://www.gitignore.io/api/c,git,vim,c++,linux,cmake,opencv,python,windows
