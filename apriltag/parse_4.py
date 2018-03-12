@@ -5,12 +5,6 @@ from matplotlib import pyplot as plt
 from utils import proc, nvec, rmat
 from multicomet import MultiCometAnimation
 
-def project2d(vs, ns):
-    # vs = vectors
-    # ns = normal vectors
-    Rs = [rmat(n, np.asarray([0,0,1])) for n in ns]
-    return np.asarray([R.dot(v) for (R,v) in zip(Rs,vs)], dtype=np.float32)
-
 def plot(time, pos, vel):
     # remove initial point
 
@@ -27,12 +21,21 @@ def plot(time, pos, vel):
     dy = pivot[1] - y
     angle = np.arctan2(dx, dy)
     angle = np.rad2deg(angle)
-    plt.plot(time,angle)
-    plt.xlabel('time (s)')
-    plt.ylabel(r'$\theta (deg)$')
-    plt.title('Single Pendulum With Escapement')
-    plt.grid()
-    plt.show()
+    
+    np.savetxt(
+            'data1.csv',
+            np.concatenate((time[...,np.newaxis],pos,vel,angle[...,np.newaxis]), axis=-1),
+            delimiter=',',
+            header = 't x y vx vy th'
+            )
+
+
+    #plt.plot(time,angle)
+    #plt.xlabel('time (s)')
+    #plt.ylabel(r'$\theta (deg)$')
+    #plt.title('Single Pendulum With Escapement')
+    #plt.grid()
+    #plt.show()
 
     # show animation ...
     # data = pos[:, np.newaxis, ...]

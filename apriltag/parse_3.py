@@ -14,30 +14,7 @@ import sys
 import argparse
 from scipy.signal import find_peaks_cwt
 
-from utils import proc
-
-def v2vx(v):
-    v1,v2,v3 = v
-    return np.reshape([0, -v3, v2, v3, 0, -v1, -v2, v1, 0], (3,3)).astype(np.float32)
-
-def rmat(v0, v1):
-    # returns 3d rotation Matrix M, such that
-    # M * uvec(v0) = uvec(v1)
-
-    u = v0
-    v = v1
-
-    axis = np.cross(u, v)
-    axis /= np.linalg.norm(axis)
-    ax,ay,az = axis
-    th = np.arccos(np.dot(u, v))
-    c = np.cos(th)
-    _c = 1.0 - c
-    s = np.sin(th)
-
-    M = (1.0 - c) * np.outer(axis, axis)
-    M += np.reshape([c, -s*az, s*ay, s*az, c, -s*ax, -s*ay, s*ax, c],(3,3))
-    return np.asarray(M, dtype=np.float32)
+from utils import proc, rmat
 
 def project2d(vs, ns):
     # vs = vectors

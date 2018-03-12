@@ -58,7 +58,7 @@ def proc(raw_data, ids, dt):
             sys.stdout.flush()
         [u.predict(dt) for u in ukfs]
         midx, obs = reorder(e, ids)
-        if midx:
+        if len(midx) > 0:
             # only update applicable ones
             for i in range(n):
                 if i in midx:
