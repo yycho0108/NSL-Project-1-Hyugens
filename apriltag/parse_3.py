@@ -103,20 +103,10 @@ def process(f, opts):
     # Data Format : [id,x,y,z | id,x,y,z | id,x,y,z ...]
     raw_data = f.readlines()[1:]
     raw_data = [np.asarray([r.split(',') for r in e.split('|')[:-1]], dtype=np.float32) for e in raw_data]
+    #raw_data = raw_data[2000:3000]
 
     # Process & match ids, etc...
-    fpt = MSS(6, 1e-3, 2, 0.0)
-    ukfs = [UKF(6,3,dt,hx=hx,fx=fx,points=fpt) for _ in range(4)]
-    for i, u in enumerate(ukfs):
-        u.x = np.zeros(6, dtype=np.float32)
-        u.x[:3] = raw_data[0][i][1:]
-        u.P = np.square(np.diag([5.0, 5.0, 5.0, 10.0, 10.0, 10.0])) # initial cov
-        u.R = 0.005 * np.eye(3) #(5.0)**2 * np.eye(3) # measurement cov, ~ +-5mm std.
-        u.Q = (1.0)**2 * np.eye(6) # process cov ~ +-3mm std.
-
     ids = np.int32([l[0] for l in raw_data[0]]) # say 15, 25, 31
-
-    l = len(raw_data) - 1 # skip the first one, so...
     pos,vel = proc(raw_data, ids, dt) 
 
     # flip y ...
@@ -160,11 +150,13 @@ def process(f, opts):
     # time
     t = dt * np.arange(len(pos)) # 60fps
     t = t[..., np.newaxis] # add axis for concatenating
+    
+    data = np.concatenate((t, pos[:,0], vel[:,0]), axis=-1)
 
     if opts.outfile:
         #np.save(opts.outfile, (t, th))
         np.savetxt(opts.outfile,
-            np.concatenate((t,pos,vel), axis=-1),
+            data,
             delimiter=',',
             header = 't x y vx vy'
             )
@@ -179,15 +171,19 @@ def plot(f):
     fps = 60
     dt = 1.0 / fps
     offset = 10 * fps # wait ~10 sec. for stabilization
-    period = int(1.1 * fps)
+    period = int(1.5 * fps)
 
-    fin = offset + 5 * fps
-    t, th = np.load(f)
+    data = np.loadtxt(f, delimiter=',')
+    t,x,y,vx,vy = data.T
 
+    px = np.mean(x)
+    py = np.min(y)+343.
+    dx = x - px
+    dy = py - y
+
+    th = np.arctan2(dx, dy)
     th = np.rad2deg(th)
 
-    w = np.diff(th) / dt # or thereabouts, anyway.
-    print np.mean(np.abs(w))
     #peaks = find_peaks_cwt(th, range(window-5,window+5))
 
     # first peak. also defines amplitude
@@ -200,12 +196,10 @@ def plot(f):
             p = p0 + np.argmax(th[p0:p1])
             pidx.append(p)
         except:
+            print '!!'
             break
 
     #pidx = np.divide(peaks[:-1], p) # peaks = p0*e^(-g*t)
-
-    #th += 0.775
-
     peaks = th[pidx]
     times = t[pidx]
     sel = (peaks > 0)
