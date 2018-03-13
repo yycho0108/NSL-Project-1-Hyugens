@@ -5,15 +5,11 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.patches import Ellipse
 from matplotlib.animation import FuncAnimation, TimedAnimation, writers
-
-from filterpy.kalman import UnscentedKalmanFilter as UKF
-from filterpy.kalman import MerweScaledSigmaPoints as MSS
 
 import sys
 import argparse
-from scipy.signal import find_peaks_cwt
-
 from utils import proc, rmat, plot_circle
 
 def project2d(vs, ns):
@@ -45,6 +41,26 @@ def hide_axis(ax):
     ax.spines['left'].set_color('none')
     ax.spines['right'].set_color('none')
     ax.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
+
+def lims(x, y, s=1.1, equal=False):
+    xmn, xmx = np.min(x), np.max(x)
+    xmd = (xmx+xmn)/2.0
+    sx = (xmx - xmn)
+
+    ymn, ymx = np.min(y), np.max(y)
+    ymd = (ymx+ymn)/2.0
+    sy = (ymx - ymn)
+
+    if equal:
+        sx = max(sx, sy)
+        sy = max(sx, sy)
+
+    return (xmd - sx*s/2, xmd + sx*s/2), (ymd - sy*s/2, ymd + sy*s/2)
+
+def lim2aspect(lim):
+    xs = np.abs(lim[0][1] - lim[0][0])
+    ys = np.abs(lim[1][1] - lim[1][0])
+    return ys/xs
 
 def get_pivot_2(pts, r=343.):
     # r = 343
@@ -147,6 +163,7 @@ def plot(f):
     period = int(1.5 * fps)
 
     data = np.loadtxt(f, delimiter=',')
+
     t,x,y,vx,vy = data.T
 
     px = np.mean(x)
@@ -157,7 +174,11 @@ def plot(f):
     th = np.arctan2(dx, dy)
     th = np.rad2deg(th)
 
-    #peaks = find_peaks_cwt(th, range(window-5,window+5))
+    #np.savetxt('with_theta.csv',
+    #    np.concatenate((data,th[...,np.newaxis]),axis=-1),
+    #    delimiter=',',
+    #    header = 't x y vx vy th'
+    #    )
 
     # first peak. also defines amplitude
     p = np.argmax(th)
@@ -183,7 +204,7 @@ def plot(f):
     g, a = np.polyfit(times, lpeaks, 1)
 
     #fig, ax = plt.subplots()
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8,6))
 
     ax = fig.add_subplot(111)
     hide_axis(ax)
@@ -193,33 +214,78 @@ def plot(f):
     print len(th)
     print 'th0', np.max(th)
     print 'thmin', np.min(th)
-    ax0.plot(t, th, label='data')
-    ax0.plot(times, peaks, '*', label='peaks')
-    ax0.plot(t, np.exp(a)*np.exp(g*t), '--', label='fit')
+    l0 = []
+    c0 = []
+    fit_t = np.exp(a) * np.exp(g*t)
 
+    lim = lims(t, th)
+    aspect = lim2aspect(lim)
+
+    ax0.set_xlim(lim[0])
+    ax0.set_ylim(lim[1])
+
+    l0.append(Line2D(t, th, label='data', color='b'))
+    l0.append(Line2D(times, peaks, marker='*', label='peaks', color='r'))
+    l0.append(Line2D(t, fit_t, linestyle='--', label='fit', color='g'))
+    c0.append(Ellipse((0,0), 15.0, 15.0*aspect, fc='y'))
+
+    [ax0.add_line(l) for l in l0]
+    [ax0.add_patch(c) for c in c0]
+
+    ax0.text(0.6, 0.95, r'$ \theta(t) \approx %.2f \cdot e^{%.5f t}$' % (np.exp(a), g),
+            verticalalignment='top', horizontalalignment='left',
+            transform=ax0.transAxes
+            )
     ax0.set_xlabel('Time (s)')
     ax0.set_ylabel(r'$\theta (deg)$')
+    #ax0.set_xlim(np.min(t), np.max(t))
+    #ax0.set_ylim(np.min(th), np.max(th))
     ax0.legend()#['data', 'peaks', 'fit'])
     ax0.grid()
 
+    ## 10
+    l10 = []
+    c10 = []
     ax10 = fig.add_subplot(223)
     ax10.set_aspect('equal','datalim')
     ax10.set_xlabel('x (mm)')
     ax10.set_ylabel('y (mm)')
-    ax10.plot(x, y)
-    
+
+    lim = lims(np.append(x,px), np.append(y,py), equal=True)
+    aspect = lim2aspect(lim)
+    ax10.set_xlim(lim[0])
+    ax10.set_ylim(lim[1])
+    ax10.grid()
+
+    l10.append(Line2D(x,y))
+    c10.append(Ellipse((0,0), 10.0, 10.0*aspect, fc='r'))
     px = np.mean(x)
     py = np.min(y) + 343
     pivot = (px, py)
-    plot_circle(pivot, 5, ax=ax10)
-    ax10.grid()
+    l10.append(plot_circle(pivot, 5, ax=ax10))
 
+    [ax10.add_line(l) for l in l10]
+    [ax10.add_patch(c) for c in c10]
+
+
+    # ax11
     ax11 = fig.add_subplot(224)
-    ax11.plot(x,y)
+
+    lim = lims(x, y, equal=False)
+    aspect = lim2aspect(lim)
+    ax11.set_xlim(lim[0])
+    ax11.set_ylim(lim[1])
     ax11.grid()
+
+    l11 = []
+    c11 = []
+    l11.append(Line2D(x,y))
+    c11.append(Ellipse((0,0), 2.0, 2.0*aspect, fc='r'))
+    [ax11.add_line(l) for l in l11]
+    [ax11.add_patch(c) for c in c11]
+
     ax11.set_xlabel('x (mm)')
     ax11.set_ylabel('y (mm)')
-    ax11.legend()
 
     print 'gamma : {}'.format(g)
 
@@ -227,10 +293,32 @@ def plot(f):
     #plt.rc('text', usetex=True)
     ax.set_title('Damping Behavior Without Escapement')
     print 'g', g
-    ax0.text(0.75, 0.95, r'$ \theta(t) \approx %.2f \cdot e^{%.5f t}$' % (np.exp(a), g),
-            verticalalignment='top', horizontalalignment='left',
-            transform=ax.transAxes
-            )
+
+    if opts.animate:
+        def animate(i):
+            ti = t[i]
+            txi = np.argmin(np.abs(times - ti))
+            l0[0].set_data(t[:i], th[:i])
+            l0[1].set_data(times[:txi], peaks[:txi])
+            l0[2].set_data(t[:i], fit_t[:i])
+            c0[0].center = (t[i], th[i])
+
+            l10[0].set_data(x[:i], y[:i])
+            c10[0].center = (x[i], y[i])
+
+            l11[0].set_data(x[:i], y[:i])
+            c11[0].center = (x[i], y[i])
+            return l0+c0+l10+c10+l11+c11
+
+        ani = FuncAnimation(fig, animate, frames=len(x), blit=True, interval=10.)
+        
+        Writer = writers['ffmpeg']
+        writer = Writer(fps=120, metadata=dict(artist='Me'), bitrate=1800)
+        ani.save('parse_3.mp4', writer=writer)
+
+        #ani = TimedAnimation(fig, blit=True)
+        #ani._draw_frame = 
+
     plt.show()
 
 

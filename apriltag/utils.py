@@ -3,6 +3,7 @@ from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import MerweScaledSigmaPoints as MSS
 from matplotlib import pyplot as plt
 import sys
+from matplotlib.lines import Line2D
 
 def hx(x):
     #x,y,vx,vy
@@ -119,4 +120,5 @@ def plot_circle(c, r, ax=None):
     th = np.linspace(-np.pi, np.pi)
     x = c[0] + r*np.cos(th)
     y = c[1] + r*np.sin(th)
-    ax.plot(x,y)
+    return Line2D(x,y)
+    #ax.plot(x,y)
