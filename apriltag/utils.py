@@ -1,6 +1,7 @@
 import numpy as np
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import MerweScaledSigmaPoints as MSS
+from matplotlib import pyplot as plt
 import sys
 
 def hx(x):
@@ -108,3 +109,14 @@ def rmat(v0, v1):
     M = (1.0 - c) * np.outer(axis, axis)
     M += np.reshape([c, -s*az, s*ay, s*az, c, -s*ax, -s*ay, s*ax, c],(3,3))
     return np.asarray(M, dtype=np.float32)
+
+#def axis_equal(ax):
+#    11
+    
+def plot_circle(c, r, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    th = np.linspace(-np.pi, np.pi)
+    x = c[0] + r*np.cos(th)
+    y = c[1] + r*np.sin(th)
+    ax.plot(x,y)

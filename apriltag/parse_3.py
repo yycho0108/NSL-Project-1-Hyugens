@@ -14,7 +14,7 @@ import sys
 import argparse
 from scipy.signal import find_peaks_cwt
 
-from utils import proc, rmat
+from utils import proc, rmat, plot_circle
 
 def project2d(vs, ns):
     # vs = vectors
@@ -39,16 +39,12 @@ def reorder(e1, id0):
             midx.append(i0)
     return np.int32(midx), res
 
-def hx(x):
-    #x,y,vx,vy
-    return x[:3]
-
-def fx(x, dt):
-    x,y,z,vx,vy,vz = x
-    x=x+vx*dt
-    y=y+vy*dt
-    z+y+vz*dt
-    return (x,y,z,vx,vy,vz)
+def hide_axis(ax):
+    ax.spines['top'].set_color('none')
+    ax.spines['bottom'].set_color('none')
+    ax.spines['left'].set_color('none')
+    ax.spines['right'].set_color('none')
+    ax.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
 
 def get_pivot_2(pts, r=343.):
     # r = 343
@@ -186,24 +182,52 @@ def plot(f):
     lpeaks = np.log(peaks) # pk(t) = -g*t + log(p0)
     g, a = np.polyfit(times, lpeaks, 1)
 
-    fig, ax = plt.subplots()
+    #fig, ax = plt.subplots()
+    fig = plt.figure()
+
+    ax = fig.add_subplot(111)
+    hide_axis(ax)
+
+    ax0 = fig.add_subplot(211)
+
     print len(th)
     print 'th0', np.max(th)
     print 'thmin', np.min(th)
-    plt.plot(t, th)
-    plt.plot(times, peaks, '*')
-    plt.plot(t, np.exp(a)*np.exp(g*t), '--')
+    ax0.plot(t, th, label='data')
+    ax0.plot(times, peaks, '*', label='peaks')
+    ax0.plot(t, np.exp(a)*np.exp(g*t), '--', label='fit')
+
+    ax0.set_xlabel('Time (s)')
+    ax0.set_ylabel(r'$\theta (deg)$')
+    ax0.legend()#['data', 'peaks', 'fit'])
+    ax0.grid()
+
+    ax10 = fig.add_subplot(223)
+    ax10.set_aspect('equal','datalim')
+    ax10.set_xlabel('x (mm)')
+    ax10.set_ylabel('y (mm)')
+    ax10.plot(x, y)
+    
+    px = np.mean(x)
+    py = np.min(y) + 343
+    pivot = (px, py)
+    plot_circle(pivot, 5, ax=ax10)
+    ax10.grid()
+
+    ax11 = fig.add_subplot(224)
+    ax11.plot(x,y)
+    ax11.grid()
+    ax11.set_xlabel('x (mm)')
+    ax11.set_ylabel('y (mm)')
+    ax11.legend()
 
     print 'gamma : {}'.format(g)
 
     #plt.plot(peaks)
     #plt.rc('text', usetex=True)
-    plt.title('Damping Behavior Without Escapement')
-    plt.xlabel('Time (s)')
-    plt.ylabel(r'$\theta (deg)$')
-    plt.legend(['data', 'peaks', 'fit'])
+    ax.set_title('Damping Behavior Without Escapement')
     print 'g', g
-    plt.text(0.3, 0.95, r'$ \theta(t) \approx %.2f \cdot e^{%.5f t}$' % (np.exp(a), g),
+    ax0.text(0.75, 0.95, r'$ \theta(t) \approx %.2f \cdot e^{%.5f t}$' % (np.exp(a), g),
             verticalalignment='top', horizontalalignment='left',
             transform=ax.transAxes
             )
@@ -225,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('filename', type=str)#, nargs='1')
     parser.add_argument('--proc', type=str2bool, default='False')
     parser.add_argument('--outfile', type=str, nargs='?', const=True, default='', help='Data output file')
+    parser.add_argument('--animate', type=str2bool, default='False')
 
     opts = parser.parse_args(sys.argv[1:])
     if opts.proc:
