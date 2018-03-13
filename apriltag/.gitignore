@@ -5,6 +5,7 @@ build
 images/
 *.csv
 *.npy
+*.mp4
 
 # Created by https://www.gitignore.io/api/c,git,vim,c++,linux,cmake,opencv,python,windows
 
